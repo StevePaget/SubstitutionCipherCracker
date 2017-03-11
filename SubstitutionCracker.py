@@ -11,8 +11,6 @@ class App:
         self.topLabel = Label(mainframe, text="Enter encrypted here:")
         self.topLabel.grid(row=0, column=0, columnspan=10, sticky=W)
 
-        self.reformatSpaces = Button(mainframe, text="Reformat")
-        self.reformatSpaces.grid(row=0, column=10, columnspan=6, sticky=E)
 
         self.letterFrequencies = Button(mainframe, text="Show Letter Frequencies", command=self.showLetterFrequencies)
         self.letterFrequencies.grid(row=0, column=17, columnspan=5)
@@ -23,11 +21,15 @@ class App:
         self.entryBox = Text(mainframe, height=10, font="courier", bd=2, selectborderwidth=3)
         self.entryBox.grid(row=1, column=0, columnspan=16, sticky=W + E)
 
+        self.decryptedbox = Text(mainframe, height=10, font="courier",bd=2)
+        self.decryptedbox.grid(row=3, column=0, columnspan=16, sticky=W + E)
+
+        self.reformatCiphertextButton = Button(mainframe, text="Reformat", command=self.reformatCiphertext)
+        self.reformatCiphertextButton.grid(row=0, column=10, columnspan=6, sticky=E)
+
         self.nextlabel = Label(mainframe, text="Decrypted text appears here:")
         self.nextlabel.grid(row=2, column=0, columnspan=16, sticky=W)
 
-        self.decryptedbox = Text(mainframe, height=10, font="courier",bd=2)
-        self.decryptedbox.grid(row=3, column=0, columnspan=16, sticky=W + E)
 
         self.frequencyGraph = Canvas(mainframe, width=450, height=400)
         self.frequencyGraph.grid(row=1, column=18, columnspan=11, rowspan=5)
@@ -76,10 +78,24 @@ class App:
     def autoDecrypt(self):
         print("clicked")
 
-    def reformatSpaces(self):
+    def reformatCiphertext(self):
         # go through encrypted text and remove spaces & punctuation. Update ciphertext box
-
-        pass
+        self.ciphertextContents = self.entryBox.get(1.0, END)
+        self.ciphertextContents = self.ciphertextContents.replace(" ", "")
+        self.ciphertextContents = self.ciphertextContents.replace("\n", "")
+        self.ciphertextContents = self.ciphertextContents.upper()
+        newCipherText = ""
+        letterCount = 0
+        for letter in self.ciphertextContents:
+            letterNum = ord(letter) - 65
+            if letterNum >= 0 and letterNum <= 26:
+                newCipherText += letter
+                letterCount+=1
+                if letterCount % 5==0:
+                    newCipherText +=" "
+        self.entryBox.delete(1.0, END)
+        self.entryBox.insert(1.0, newCipherText)
+        self.letterEntered(None)
 
     def onMoveDecrypt(self, a):
         self.entryBox.tag_delete("hl")
@@ -174,7 +190,6 @@ class App:
 
 
     def checkentries(self,a,c,b):
-        print("Check mappings")
         newmappings = [mapping.get() for mapping in self.mappings]
         # turn all uppercase:
         for mapNo in range(len(self.mappings)):
@@ -199,8 +214,7 @@ class App:
             thisletter = self.mappings[mapNo].get()                
             if newmappings.count(thisletter) >1 and oldmappings[mapNo] != thisletter:
                 self.mappings[mapNo].set("")
-            print (">" + self.mappings[mapNo].get(), end = "")
-        print()
+
         self.oldMappings = [mapping.get() for mapping in self.mappings]
         self.letterEntered(a)
         return True
@@ -209,7 +223,7 @@ class App:
         #the top text box has been changed, so update the decrypted box
         self.ciphertextContents = self.entryBox.get(1.0, END)
         self.ciphertextContents = self.ciphertextContents.upper()
-        self.ciphertextContents.replace("\n", "")
+        self.ciphertextContents = self.ciphertextContents.replace("\n", "")
         plaintext = ""
         for letter in self.ciphertextContents:
             letterNum = ord(letter)-65

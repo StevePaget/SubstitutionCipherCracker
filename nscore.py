@@ -23,7 +23,7 @@ class ngram_score(object):
         ''' compute the score of text '''
         score = 0
         ngrams = self.ngrams.__getitem__
-        for i in xrange(len(text) - self.L + 1):
+        for i in range(len(text) - self.L + 1):
             if text[i:i + self.L] in self.ngrams:
                 score += ngrams(text[i:i + self.L])
             else:

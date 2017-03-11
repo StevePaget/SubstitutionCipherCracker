@@ -2,7 +2,6 @@ from tkinter import *
 import random
 
 
-
 class App:
     def __init__(self,master):
         mainframe = Frame(master)

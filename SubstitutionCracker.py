@@ -7,6 +7,7 @@ import multiprocessing as mp
 class App:
     def __init__(self, master):
         self.master = master
+        self.runningDecrypt = False
         mainframe = Frame(master)
         mainframe.grid(row=0, column=0)
         self.ciphertextContents = ""
@@ -19,14 +20,17 @@ class App:
         self.vowelTrowel = Button(mainframe, text="Show Vowel Trowel", command=self.showVowelTrowel)
         self.vowelTrowel.grid(row=0, column=22, columnspan=5)
 
-        self.entryBox = Text(mainframe, height=10, font="courier 14", bd=2, selectborderwidth=3)
+        self.entryBox = Text(mainframe, height=10, font="courier 18", bd=2, selectborderwidth=3)
         self.entryBox.grid(row=1, column=0, columnspan=16, sticky=W + E)
 
-        self.decryptedbox = Text(mainframe, height=10, font="courier 14", bd=2)
+        self.decryptedbox = Text(mainframe, height=10, font="courier 18", bd=2)
         self.decryptedbox.grid(row=3, column=0, columnspan=16, sticky=W + E)
 
         self.reformatCiphertextButton = Button(mainframe, text="Reformat", command=self.reformatCiphertext)
-        self.reformatCiphertextButton.grid(row=0, column=10, columnspan=6, sticky=E)
+        self.reformatCiphertextButton.grid(row=0, column=10, columnspan=6, sticky=EW)
+
+        self.clearSpacesButton = Button(mainframe, text="Trim", command=self.clearSpaces)
+        self.clearSpacesButton.grid(row=0, column=6, columnspan=5, sticky=EW)
 
         self.nextlabel = Label(mainframe, text="Decrypted text appears here:")
         self.nextlabel.grid(row=2, column=0, columnspan=16, sticky=W)
@@ -74,65 +78,42 @@ class App:
         self.entryBox.bind("<Motion>", self.onMoveEntry)
         self.decryptedbox.bind("<Motion>", self.onMoveDecrypt)
 
+
     def autoDecrypt(self):
-        ciphertextContents = self.entryBox.get(1.0, END)
-        ciphertextContents = ciphertextContents.upper()
-        ciphertextContents = ciphertextContents.replace("\n", "")
-        self.q=mp.Queue()
-        p = mp.Process(target=autoDecryptTask, args=(self.q, ciphertextContents))
-        p.start()
-        self.master.after(5000, self.update)
+        if not self.runningDecrypt:
+            self.runningDecrypt = True
+            self.ciphertextContents = self.entryBox.get(1.0, END)
+            self.ciphertextContents = self.ciphertextContents.upper()
+            self.ciphertextContents = self.ciphertextContents.replace("\n", "")
+            self.PipeIn, self.PipeOut = mp.Pipe()
+            self.p = mp.Process(target=autoDecryptTask, args=(self.PipeIn, self.ciphertextContents))
+            self.p.start()
+            self.go.config(text="Stop")
+            self.afterID = self.master.after(5000, self.update)
+        else:
+            self.master.after_cancel(self.afterID )
+            self.runningDecrypt = False
+            self.p.terminate()
+            self.go.config(text="Decrypt!")
+
+
 
     def update(self):
-        print(self.q.get())
-        self.master.after(5000, self.update)
-        # fitness = ngram_score('quadgrams.txt')  # load our quadgram statistics
-        # maxkey = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-        # maxscore = -99e9
-        # parentscore, parentkey = maxscore, maxkey[:]
-        # self.ciphertextContents = self.entryBox.get(1.0, END)
-        # self.ciphertextContents = self.ciphertextContents.upper()
-        # self.ciphertextContents = self.ciphertextContents.replace("\n", "")
-        #
-        # i = 0
-        # while i < 1000:
-        #     i = i + 1
-        #     print(i)
-        #     random.shuffle(parentkey)
-        #     deciphered = self.substitute(self.ciphertextContents, parentkey)
-        #     parentscore = fitness.score(deciphered)
-        #     count = 0
-        #     while count < 1000:
-        #         a = random.randint(0, 25)
-        #         b = random.randint(0, 25)
-        #         child = parentkey[:]
-        #         # swap two characters in the child
-        #         child[a], child[b] = child[b], child[a]
-        #         deciphered = self.substitute(self.ciphertextContents, child)
-        #         score = fitness.score(deciphered)
-        #         # if the child was better, replace the parent with it
-        #         if score > parentscore:
-        #             parentscore = score
-        #             parentkey = child[:]
-        #             count = 0
-        #         count = count + 1
-        #     # keep track of best score seen so far
-        #     if parentscore > maxscore:
-        #         maxscore, maxkey = parentscore, parentkey[:]
-        #         # print ('\nbest score so far:',maxscore,'on iteration',i)
-        #         ss = self.substitute(self.ciphertextContents, maxkey)
-        #         # print ('    best key: '+''.join(maxkey))
-        #         # print ('    plaintext: '+ss)
-        #         self.decryptedbox.delete(1.0, END)
-        #         self.decryptedbox.insert(1.0, ss)
-        #         self.decryptedbox.update()
+        if self.runningDecrypt:
+            if self.PipeOut.poll():
+                maxkey = self.PipeOut.recv()
+                self.clearKey()
+                for x in range(26):
+                    self.mappings[x].set(maxkey[x])
+                plaintext = substitute(self.ciphertextContents, maxkey)
+                self.decryptedbox.delete(1.0, END)
+                self.decryptedbox.insert(1.0, plaintext)
+            self.afterID =  self.master.after(1000, self.update)
+
 
     def reformatCiphertext(self):
         # go through encrypted text and remove spaces & punctuation. Update ciphertext box
-        self.ciphertextContents = self.entryBox.get(1.0, END)
-        self.ciphertextContents = self.ciphertextContents.replace(" ", "")
-        self.ciphertextContents = self.ciphertextContents.replace("\n", "")
-        self.ciphertextContents = self.ciphertextContents.upper()
+        self.clearSpaces()
         newCipherText = ""
         letterCount = 0
         for letter in self.ciphertextContents:
@@ -142,6 +123,21 @@ class App:
                 letterCount += 1
                 if letterCount % 5 == 0:
                     newCipherText += " "
+        self.entryBox.delete(1.0, END)
+        self.entryBox.insert(1.0, newCipherText)
+        self.letterEntered(None)
+
+    def clearSpaces(self):
+        # Same as reformat but no extra spaces added
+        self.ciphertextContents = self.entryBox.get(1.0, END)
+        self.ciphertextContents = self.ciphertextContents.replace(" ", "")
+        self.ciphertextContents = self.ciphertextContents.replace("\n", "")
+        self.ciphertextContents = self.ciphertextContents.upper()
+        newCipherText = ""
+        for letter in self.ciphertextContents:
+            letterNum = ord(letter) - 65
+            if letterNum >= 0 and letterNum <= 26:
+                newCipherText += letter
         self.entryBox.delete(1.0, END)
         self.entryBox.insert(1.0, newCipherText)
         self.letterEntered(None)
@@ -237,7 +233,6 @@ class App:
                                             anchor="nw", fill="blue", font=("Courier", 12, "bold"))
 
     def checkentries(self, a, c, b):
-        newmappings = [mapping.get() for mapping in self.mappings]
         # turn all uppercase:
         for mapNo in range(len(self.mappings)):
             thisletter = self.mappings[mapNo].get()
@@ -270,7 +265,7 @@ class App:
         # the top text box has been changed, so update the decrypted box
         self.ciphertextContents = self.entryBox.get(1.0, END)
         self.ciphertextContents = self.ciphertextContents.upper()
-        self.ciphertextContents = self.ciphertextContents.replace("\n", "")
+        self.ciphertextContents = self.ciphertextContents.replace("\n", " ")
         plaintext = ""
         key = [None for x in range(26)]
         for letterNum in range(26):
@@ -296,7 +291,7 @@ class App:
 
 
 
-def autoDecryptTask(q, ciphertextContents):
+def autoDecryptTask(PipeIn, ciphertextContents):
         fitness = ngram_score('english_quadgrams.txt')  # load our quadgram statistics
         maxkey = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
         maxscore = -99e9
@@ -304,8 +299,6 @@ def autoDecryptTask(q, ciphertextContents):
         i = 0
         while i < 1000:
             i = i + 1
-            q.put(i)
-            #print(i)
             random.shuffle(parentkey)
             deciphered = substitute(ciphertextContents, parentkey)
             parentscore = fitness.score(deciphered)
@@ -328,7 +321,7 @@ def autoDecryptTask(q, ciphertextContents):
             if parentscore > maxscore:
                 maxscore, maxkey = parentscore, parentkey[:]
                 # print ('\nbest score so far:',maxscore,'on iteration',i)
-                ss = substitute(ciphertextContents, maxkey)
+                PipeIn.send(maxkey)
                 # print ('    best key: '+''.join(maxkey))
                 # print ('    plaintext: '+ss)
 
@@ -354,4 +347,6 @@ if __name__ == "__main__":
     root.resizable(width=False, height=False)
     app = App(root)
     root.mainloop()
+    if app.runningDecrypt:
+        app.p.terminate()
     print("Quit")
